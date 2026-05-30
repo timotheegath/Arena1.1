@@ -4,7 +4,8 @@
 # from collections import defaultdict
 from dataclasses import dataclass
 # from pathlib import Path
-from typing import Tuple
+from typing import Tuple, cast
+from transformers import PreTrainedTokenizerBase
 
 # import datasets
 #import einops
@@ -12,7 +13,7 @@ from typing import Tuple
 import torch as t
 import torch.nn as nn
 # import wandb
-from jaxtyping import Float
+from jaxtyping import Float, Int
 # from rich import print as rprint
 # from rich.table import Table
 from torch import Tensor
@@ -95,7 +96,7 @@ class Tests:
         print("Output shape:", output.shape)
         try:
             reference_output = gpt2_layer(input)
-        except:
+        except TypeError:
             reference_output = gpt2_layer(input, input, input)
         print("Reference output shape:", reference_output.shape, "\n")
         comparison = t.isclose(output, reference_output, atol=1e-4, rtol=1e-3)
@@ -122,7 +123,21 @@ class LayerNorm(nn.Module):
         scaled_residual = normed_residual*self.w + self.b
         return scaled_residual
 
+class Embed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_E = nn.Parameter(t.empty((cfg.d_vocab, cfg.d_model)))
+        nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]: #noqa F722
+        # Create for each position a one hot vector in d_vocab where only the vocab has a value of 1
+        one_hot_tokens : Int[Tensor, "batch position d_vocab"] = nn.functional.one_hot(tokens, self.cfg.d_vocab)#noqa F722
+        # Matrix multiply the one_hot tokens with the embedding matrix to only keep the embeddings of the relevant vocab at each position
+        embeddings : Float[Tensor, "batch position d_model"] = t.matmul(one_hot_tokens.to(t.float), self.W_E) #noqa F722
+        return embeddings
+
+        
 
 
 
@@ -134,10 +149,13 @@ if __name__ == "__main__":
         center_unembed=False,
         center_writing_weights=False,  # you'll learn about these arguments later!
     )
-    # Tests.rand_float_test(LayerNorm, [2, 4, 768])
+    # Tests.rand_float_test(Embed, [2, 6, Config.d_vocab])
     
     sentence = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
     logits, cache = reference_gpt2.run_with_cache(sentence)
- 
-    Tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
+
+    tokenizer = reference_gpt2.tokenizer
+    if tokenizer is not None: # Only did this to satisfy my Linter
+        Tests.load_gpt2_test(Embed, reference_gpt2.embed, t.tensor(tokenizer.encode(sentence)).to(device))
+    #Tests.load_gpt2_test(Embed, reference_gpt2.embed, cache["resid_post", 11])
     # tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
