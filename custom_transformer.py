@@ -4,9 +4,7 @@
 # from collections import defaultdict
 from dataclasses import dataclass
 # from pathlib import Path
-from typing import Tuple, cast
-from transformers import PreTrainedTokenizerBase
-
+from typing import Tuple
 # import datasets
 #import einops
 # import numpy as np
@@ -31,6 +29,13 @@ device = t.device(
     if t.cuda.is_available()
     else "cpu"
 )
+reference_gpt2 = HookedTransformer.from_pretrained(
+        "gpt2-small",
+        fold_ln=False,
+        center_unembed=False,
+        center_writing_weights=False,  # you'll learn about these arguments later!
+    )
+tokenizer = reference_gpt2.tokenizer
 
 @dataclass
 class Config:
@@ -64,8 +69,6 @@ class Tests:
         high_variance_per_batch : Float[Tensor, "batch"] = t.count_nonzero(new_variance > 1, dim=-1) #noqa: F821
         assert t.any(non_zero_means_per_batch == 0), "There is at least one batch with a non-zero-mean embedding: {}".format(non_zero_means_per_batch)
         assert t.any(high_variance_per_batch == 0), "There is at least one batch with a higher-than-1 variance: {}".format(non_zero_means_per_batch)
-        
-
 
     @staticmethod
     def rand_int_test(model_cls :  type[nn.Module], shape: list[int]) -> None:
@@ -102,7 +105,8 @@ class Tests:
         comparison = t.isclose(output, reference_output, atol=1e-4, rtol=1e-3)
         print(f"{comparison.sum() / comparison.numel():.2%} of the values are correct\n")
         assert 1 - (comparison.sum() / comparison.numel()) < 1e-5, "More than 0.01% of the values are incorrect"
-        
+
+
 '''Put the code for your custom transformer layers here. You can use the tests above to check if your implementation is correct.'''
 class LayerNorm(nn.Module):
     def __init__(self, cfg: Config):
@@ -122,6 +126,11 @@ class LayerNorm(nn.Module):
         
         scaled_residual = normed_residual*self.w + self.b
         return scaled_residual
+    @staticmethod
+    def test_norm(sentence: str) -> None:
+        if tokenizer is not None: # Only did this to satisfy my Linter
+            logits, cache = reference_gpt2.run_with_cache(sentence)
+            Tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
 
 class Embed(nn.Module):
     def __init__(self, cfg: Config):
@@ -136,6 +145,23 @@ class Embed(nn.Module):
         # Matrix multiply the one_hot tokens with the embedding matrix to only keep the embeddings of the relevant vocab at each position
         embeddings : Float[Tensor, "batch position d_model"] = t.matmul(one_hot_tokens.to(t.float), self.W_E) #noqa F722
         return embeddings
+    @staticmethod
+    def test_embed(sentence: str) -> None:        
+        if tokenizer is not None: # Only did this to satisfy my Linter
+            Tests.load_gpt2_test(Embed, reference_gpt2.embed, t.tensor(tokenizer.encode(sentence)).to(device))
+
+class PosEmbed(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model)))
+        nn.init.normal_(self.W_pos, std=self.cfg.init_range)
+
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]: #noqa F722
+        raise NotImplementedError()
+    
+    
+
 
         
 
@@ -143,19 +169,12 @@ class Embed(nn.Module):
 
 if __name__ == "__main__":
     cache = None
-    reference_gpt2 = HookedTransformer.from_pretrained(
-        "gpt2-small",
-        fold_ln=False,
-        center_unembed=False,
-        center_writing_weights=False,  # you'll learn about these arguments later!
-    )
+    
     # Tests.rand_float_test(Embed, [2, 6, Config.d_vocab])
     
     sentence = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
-    logits, cache = reference_gpt2.run_with_cache(sentence)
 
-    tokenizer = reference_gpt2.tokenizer
-    if tokenizer is not None: # Only did this to satisfy my Linter
-        Tests.load_gpt2_test(Embed, reference_gpt2.embed, t.tensor(tokenizer.encode(sentence)).to(device))
+
+    
     #Tests.load_gpt2_test(Embed, reference_gpt2.embed, cache["resid_post", 11])
     # tests.test_layer_norm_epsilon(LayerNorm, cache["resid_post", 11])
