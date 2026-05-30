@@ -35,8 +35,8 @@ Each custom layer in `custom_transformer.py` is written to be easy to test in is
   - `rand_float_test` and `rand_int_test` to check shapes and basic behaviour of a layer given random inputs
   - `load_gpt2_test` to compare a custom layer’s output against the corresponding pretrained GPT‑2 layer
 - Individual layers define small static test helpers that call into `Tests`, for example:
-  - `LayerNorm.test_norm(sentence: str)` runs the custom `LayerNorm` on cached GPT‑2 activations and checks that the outputs match GPT‑2’s final layer norm
-  - `Embed.test_embed(sentence: str)` checks that the custom embedding layer matches GPT‑2’s embedding on a tokenized sentence
+  - `LayerNorm.test(sentence: str)` runs the custom `LayerNorm` on cached GPT‑2 activations and checks that the outputs match GPT‑2’s final layer norm
+  - `Embed.test(sentence: str)` checks that the custom embedding layer matches GPT‑2’s embedding on a tokenized sentence
 
 The idea is that you can iteratively implement or modify a layer, then quickly run its test function to confirm that:
 

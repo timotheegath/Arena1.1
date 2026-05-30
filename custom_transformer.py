@@ -127,7 +127,7 @@ class LayerNorm(nn.Module):
         scaled_residual = normed_residual*self.w + self.b
         return scaled_residual
     @staticmethod
-    def test_norm(sentence: str) -> None:
+    def test(sentence: str) -> None:
         if tokenizer is not None: # Only did this to satisfy my Linter
             logits, cache = reference_gpt2.run_with_cache(sentence)
             Tests.load_gpt2_test(LayerNorm, reference_gpt2.ln_final, cache["resid_post", 11])
@@ -146,7 +146,7 @@ class Embed(nn.Module):
         embeddings : Float[Tensor, "batch position d_model"] = t.matmul(one_hot_tokens.to(t.float), self.W_E) #noqa F722
         return embeddings
     @staticmethod
-    def test_embed(sentence: str) -> None:        
+    def test(sentence: str) -> None:        
         if tokenizer is not None: # Only did this to satisfy my Linter
             Tests.load_gpt2_test(Embed, reference_gpt2.embed, t.tensor(tokenizer.encode(sentence)).to(device))
 
