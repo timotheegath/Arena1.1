@@ -1,5 +1,5 @@
 from dataclasses import dataclass  # noqa: I001
-from typing import cast
+from typing import cast, TYPE_CHECKING
 
 import torch as t
 import torch.nn as nn
@@ -11,6 +11,9 @@ from jaxtyping import Float, Int, jaxtyped
 from transformer_lens import HookedTransformer
 from transformer_lens.utils import gelu_new  # type: ignore
 from training import get_log_probs
+
+if TYPE_CHECKING:
+    from transformers import PreTrainedTokenizerBase
 
 # ruff: noqa: F722
 
@@ -395,6 +398,8 @@ class DemoTransformer(nn.Module):
         self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
         self.ln_final = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
+        assert reference_gpt2.tokenizer is not None, "Tokenizer must be initialized."
+        self.tokenizer: PreTrainedTokenizerBase = reference_gpt2.tokenizer
 
     @jaxtyped(typechecker=typechecker)
     def forward(
@@ -415,6 +420,10 @@ class DemoTransformer(nn.Module):
             )  # take the latest residual stream and run it through this block
         logits: Float[Tensor, "batch position d_vocab"] = self.unembed(self.ln_final(x_res[-1]))
         return logits
+
+    def complete_text(self, sentence: str, length: int = 100) -> str:
+
+        return ""
 
     @staticmethod
     def test(sentence: str) -> None:
