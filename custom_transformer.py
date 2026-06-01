@@ -116,8 +116,8 @@ class LayerNorm(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.w = nn.Parameter(t.ones(cfg.d_model)).to(device)
-        self.b = nn.Parameter(t.zeros(cfg.d_model)).to(device)
+        self.w = nn.Parameter(t.ones(cfg.d_model), requires_grad=True)
+        self.b = nn.Parameter(t.zeros(cfg.d_model), requires_grad=True)
 
     def forward(
         self, residual: Float[Tensor, "batch posn d_model"]
@@ -150,7 +150,7 @@ class Embed(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.W_E = nn.Parameter(t.empty((cfg.d_vocab, cfg.d_model))).to(device)
+        self.W_E = nn.Parameter(t.empty((cfg.d_vocab, cfg.d_model)), requires_grad=True)
         nn.init.normal_(self.W_E, std=self.cfg.init_range)
 
     def forward(
@@ -180,23 +180,15 @@ class PosEmbed(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model))).to(device)
+        self.W_pos = nn.Parameter(t.empty((cfg.n_ctx, cfg.d_model)), requires_grad=True)
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
     def forward(
         self, tokens: Int[Tensor, "batch position"]
     ) -> Float[Tensor, "batch position d_model"]:  # noqa F722
 
-        # I may be obsessing about matrix multiplication and one-hots, but this feels like a very mathy way of reaching this goal
-        # We don't know what the input size will be, so always pad it on the right with zero tokens all the way up to the max n_ctx
-        padded_input: Int[Tensor, "batch n_ctx"] = t.zeros(
-            [tokens.shape[0], self.cfg.n_ctx], dtype=t.float
-        ).to(device)
-        padded_input[:, 0 : tokens.shape[-1]] = tokens
-        # Create an identity matrix of size n_ctx as a one-hot matrix encoding positions
-        position_tensor = t.eye(self.cfg.n_ctx).to(device).unsqueeze(0)
-        # Multiply and reduce back the n_pos dimension to the original number of tokens
-        pos_embed = t.matmul(position_tensor, self.W_pos)[:, : tokens.shape[-1], :]
+        batch, seq_len = tokens.shape
+        pos_embed = self.W_pos[:seq_len].unsqueeze(0).expand(batch, -1, -1)
         return pos_embed
 
     @staticmethod
@@ -205,7 +197,7 @@ class PosEmbed(nn.Module):
     ) -> None:
         if tokenizer is not None:  # Only did this to satisfy my Linter
             Tests.load_gpt2_test(
-                PosEmbed, reference_gpt2.pos_embed, t.tensor(tokenizer.encode(sentence)).to(device)
+                PosEmbed, reference_gpt2.pos_embed, t.tensor(tokenizer.encode(sentence)).unsqueeze(0).to(device)
             )
 
     @staticmethod
@@ -219,14 +211,14 @@ class Attention(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head), requires_grad=True)).to(device)
-        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head))).to(device)
-        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head))).to(device)
-        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model))).to(device)
-        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head))).to(device)
-        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head))).to(device)
-        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head))).to(device)
-        self.b_O = nn.Parameter(t.zeros(cfg.d_model)).to(device)
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)), requires_grad=True)
+        self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)), requires_grad=True)
+        self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head)), requires_grad=True)
+        self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model)), requires_grad=True)
+        self.b_Q = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)), requires_grad=True)
+        self.b_K = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)), requires_grad=True)
+        self.b_V = nn.Parameter(t.zeros((cfg.n_heads, cfg.d_head)), requires_grad=True)
+        self.b_O = nn.Parameter(t.zeros(cfg.d_model), requires_grad=True)
         nn.init.normal_(self.W_Q, std=self.cfg.init_range)
         nn.init.normal_(self.W_K, std=self.cfg.init_range)
         nn.init.normal_(self.W_V, std=self.cfg.init_range)
@@ -309,10 +301,10 @@ class MLP(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp))).to(device)
-        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model))).to(device)
-        self.b_in = nn.Parameter(t.zeros(cfg.d_mlp)).to(device)
-        self.b_out = nn.Parameter(t.zeros(cfg.d_model)).to(device)
+        self.W_in = nn.Parameter(t.empty((cfg.d_model, cfg.d_mlp)), requires_grad=True)
+        self.W_out = nn.Parameter(t.empty((cfg.d_mlp, cfg.d_model)), requires_grad=True)
+        self.b_in = nn.Parameter(t.zeros(cfg.d_mlp), requires_grad=True)
+        self.b_out = nn.Parameter(t.zeros(cfg.d_model), requires_grad=True)
         nn.init.normal_(self.W_in, std=self.cfg.init_range)
         nn.init.normal_(self.W_out, std=self.cfg.init_range)
 
@@ -380,9 +372,9 @@ class Unembed(nn.Module):
     def __init__(self, cfg: Config) -> None:
         super().__init__()
         self.cfg = cfg
-        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab))).to(device)
+        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab)), requires_grad=True)
         nn.init.normal_(self.W_U, std=self.cfg.init_range)
-        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab))).to(device)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab)), requires_grad=True)
 
     def forward(
         self, normalized_resid_final: Float[Tensor, "batch position d_model"]
@@ -643,10 +635,12 @@ class TransformerSampler:
 if __name__ == "__main__":
     cache = None
     sentence = "When will the earth stop moving ? Or when will the pigs fly ?"
+    
     demo_gpt2 = DemoTransformer(Config(debug=False)).to(device)
-    demo_gpt2.load_pretrained_weights_from_reference()
+    PosEmbed.test(sentence, demo_gpt2.tokenizer, demo_gpt2.reference)
+    # demo_gpt2.load_pretrained_weights_from_reference()
     # tokens = Tensor(tokenizer.encode(sentence)).to(t.int).to(device).unsqueeze(0)
     # demo_logits = demo_gpt2(tokens)
     # pred_log_probs = get_log_probs(demo_logits, tokens)
-    full_sentence = demo_gpt2.complete_text(sentence, 100)
-    print(full_sentence)
+    # full_sentence = demo_gpt2.complete_text(sentence, 100)
+    # print(full_sentence)

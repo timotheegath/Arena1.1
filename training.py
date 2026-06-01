@@ -37,7 +37,7 @@ class TransformerTrainingArgs:
 class TransformerTrainer:
     def __init__(self, args: TransformerTrainingArgs, model: DemoTransformer):
         super().__init__()
-        self.model = model
+        self.model = model.to(device)
         self.args = args
         self.sampler = TransformerSampler(self.model, self.model.tokenizer)
         self.optimizer = t.optim.AdamW(
