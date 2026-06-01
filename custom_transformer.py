@@ -313,7 +313,29 @@ class TransformerBlock(nn.Module):
 
 
 
+class Unembed(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+        self.cfg = cfg
+        self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab)))
+        nn.init.normal_(self.W_U, std=self.cfg.init_range)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab), requires_grad=False))
 
+    def forward(
+        self, normalized_resid_final: Float[Tensor, "batch position d_model"]
+    ) -> Float[Tensor, "batch position d_vocab"]:
+        
+        return t.matmul(normalized_resid_final, self.W_U) + self.b_U
+    
+    @staticmethod
+    def test(sentence):
+        if tokenizer is not None:
+            logits, cache = reference_gpt2.run_with_cache(sentence)
+            Tests.load_gpt2_test(Unembed, reference_gpt2.unembed, cache["ln_final.hook_normalized"])
+    
+    @staticmethod
+    def test_with_random():
+        Tests.rand_float_test(Unembed, [2, 4, 768])
         
 
 
@@ -322,4 +344,4 @@ if __name__ == "__main__":
     cache = None
 
     sentence = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
-    TransformerBlock.test(sentence)
+    Unembed.test(sentence)
