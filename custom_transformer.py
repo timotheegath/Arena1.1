@@ -278,7 +278,40 @@ class MLP(nn.Module):
             logits, cache = reference_gpt2.run_with_cache(sentence)
             Tests.load_gpt2_test(MLP, reference_gpt2.blocks[0].mlp, cache["normalized", 0, "ln2"])
 
+class TransformerBlock(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.ln1 = LayerNorm(cfg)
+        self.attn = Attention(cfg)
+        self.ln2 = LayerNorm(cfg)
+        self.mlp = MLP(cfg)
+
+    def forward(self, resid_pre: Float[Tensor, "batch position d_model"]) -> Float[Tensor, "batch position d_model"]:
+        # Attention
+        ln_1_out = self.ln1(resid_pre)
+        attention_out = self.attn(ln_1_out)
+        # And adding this to the residual
+        residual_post_attention = resid_pre + attention_out
+        # MLP
+        ln_2_out = self.ln2(residual_post_attention)
+        mlp_out = self.mlp(ln_2_out)
+        # And adding this to the residual
+        residual_post_mlp = residual_post_attention + mlp_out
+
+        return residual_post_mlp
     
+    @staticmethod
+    def test(sentence):
+        if tokenizer is not None:
+            logits, cache = reference_gpt2.run_with_cache(sentence)
+            Tests.load_gpt2_test(TransformerBlock, reference_gpt2.blocks[0], cache["resid_pre", 0])
+    
+    @staticmethod
+    def test_with_random():
+        Tests.rand_float_test(TransformerBlock, [2, 4, 768])
+
+
 
 
         
@@ -289,4 +322,4 @@ if __name__ == "__main__":
     cache = None
 
     sentence = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
-    MLP.test(sentence)
+    TransformerBlock.test(sentence)
