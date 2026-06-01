@@ -30,7 +30,7 @@ class TransformerTrainingArgs:
     max_steps_per_epoch: int = 500
     lr: float = 1e-3
     weight_decay: float = 1e-2
-    wandb_project: str | None = "day1-demotransformer"
+    wandb_project: str | None = "day1-demotransformer-for-real"
     wandb_name: str | None = None
 
 

@@ -1,5 +1,5 @@
 *.png
 ./.*
 wandb/*
-*/__pycache__/*
-*.cpython*
+__pycache__/
+*.pyc
