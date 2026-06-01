@@ -3,13 +3,14 @@ from typing import cast
 
 import torch as t
 import torch.nn as nn
-from torch import Tensor
+import math
 
+from torch import Tensor
 from beartype import beartype as typechecker
 from jaxtyping import Float, Int, jaxtyped
 from transformer_lens import HookedTransformer
-from transformers.utils import gelu_new  # type: ignore
-from visualizers import display_logits
+from transformer_lens.utils import gelu_new  # type: ignore
+from training import get_log_probs
 
 # ruff: noqa: F722
 
@@ -395,6 +396,7 @@ class DemoTransformer(nn.Module):
         self.ln_final = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
 
+    @jaxtyped(typechecker=typechecker)
     def forward(
         self, tokens: Int[Tensor, "batch position"] | list[int]
     ) -> Float[Tensor, "batch position d_vocab"]:
@@ -432,6 +434,9 @@ if __name__ == "__main__":
     sentence = "When will the earth stop moving ? Or when will the pigs fly ? The answer does not lie in the  "
     demo_gpt2 = DemoTransformer(Config(debug=False)).to(device)
     demo_gpt2.load_state_dict(reference_gpt2.state_dict(), strict=False)
-    tokens = tokenizer.encode(sentence)
+    tokens = Tensor(tokenizer.encode(sentence)).to(t.int).to(device)
     demo_logits = demo_gpt2(tokens)
-    display_logits(tokenizer, tokens, demo_logits)
+    pred_log_probs = get_log_probs(demo_logits, tokens)
+    print(f"Avg cross entropy loss: {-pred_log_probs.mean():.4f}")
+    print(f"Avg cross entropy loss for uniform distribution: {math.log(demo_gpt2.cfg.d_vocab):4f}")
+    print(f"Avg probability assigned to correct token: {pred_log_probs.exp().mean():4f}")
