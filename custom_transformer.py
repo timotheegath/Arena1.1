@@ -4,7 +4,7 @@
 # from collections import defaultdict
 from dataclasses import dataclass
 # from pathlib import Path
-from typing import Tuple, Callable
+from typing import Tuple, List
 from beartype import beartype as typechecker    
 from torchvision.utils import save_image
 
@@ -148,7 +148,7 @@ class Embed(nn.Module):
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]: #noqa F722
         # Create for each position a one hot vector in d_vocab where only the vocab has a value of 1
-        one_hot_tokens : Int[Tensor, "batch position d_vocab"] = nn.functional.one_hot(tokens, self.cfg.d_vocab)#noqa F722
+        one_hot_tokens : Int[Tensor, "batch position d_vocab"] = nn.functional.one_hot(tokens.to(t.long), self.cfg.d_vocab)#noqa F722
         # Matrix multiply the one_hot tokens with the embedding matrix to only keep the embeddings of the relevant vocab at each position
         embeddings : Float[Tensor, "batch position d_model"] = t.matmul(one_hot_tokens.to(t.float), self.W_E) #noqa F722
         return embeddings
@@ -165,6 +165,7 @@ class PosEmbed(nn.Module):
         nn.init.normal_(self.W_pos, std=self.cfg.init_range)
 
     def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_model"]: #noqa F722
+        
         # I may be obsessing about matrix multiplication and one-hots, but this feels like a very mathy way of reaching this goal
         # We don't know what the input size will be, so always pad it on the right with zero tokens all the way up to the max n_ctx
         padded_input : Int[Tensor, "batch n_ctx"] = t.zeros([tokens.shape[0], self.cfg.n_ctx], dtype=t.float).to(device) #noqa F722
@@ -172,12 +173,17 @@ class PosEmbed(nn.Module):
         # Create an identity matrix of size n_ctx as a one-hot matrix encoding positions
         position_tensor = t.eye(self.cfg.n_ctx).to(device).unsqueeze(0)
         # Multiply and reduce back the n_pos dimension to the original number of tokens
-        return t.matmul(position_tensor, self.W_pos)[:, :tokens.shape[0], :]
+        pos_embed = t.matmul(position_tensor, self.W_pos)[:, :tokens.shape[-1], :]
+        return pos_embed
     
     @staticmethod
     def test(sentence: str):
         if tokenizer is not None: # Only did this to satisfy my Linter
             Tests.load_gpt2_test(PosEmbed, reference_gpt2.pos_embed, t.tensor(tokenizer.encode(sentence)).to(device))
+    
+    @staticmethod
+    def test_with_random():
+        Tests.rand_int_test(PosEmbed, [2, 4])
 
 class Attention(nn.Module):
     IGNORE: Float[Tensor, ""]
@@ -311,8 +317,6 @@ class TransformerBlock(nn.Module):
     def test_with_random():
         Tests.rand_float_test(TransformerBlock, [2, 4, 768])
 
-
-
 class Unembed(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -337,11 +341,39 @@ class Unembed(nn.Module):
     def test_with_random():
         Tests.rand_float_test(Unembed, [2, 4, 768])
         
+class DemoTransformer(nn.Module):
+    def __init__(self, cfg: Config):
+        super().__init__()
+        self.cfg = cfg
+        self.embed = Embed(cfg)
+        self.pos_embed = PosEmbed(cfg)
+        self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
+        self.ln_final = LayerNorm(cfg)
+        self.unembed = Unembed(cfg)
 
-
+    def forward(self, tokens: Int[Tensor, "batch position"]) -> Float[Tensor, "batch position d_vocab"]:
+        # Embed meaning and position
+        x_embed = self.embed(tokens)
+        x_pos = self.pos_embed(tokens)
+        x_0 = x_embed + x_pos
+        # Transform through all the blocks, keep the intermediate outputs        
+        x_res : List[Float[Tensor, "batch position d_model"]] = [x_0] 
+        for transformer_block in self.blocks:
+            x_res.append(transformer_block(x_res[-1])) # take the latest residual stream and run it through this block
+        logits = self.unembed(self.ln_final(x_res[-1]))
+        return logits
+    @staticmethod
+    def test(sentence):
+        if tokenizer is not None:
+            tokens = Tensor(tokenizer.encode(sentence)).to(device).to(t.int)
+            Tests.load_gpt2_test(DemoTransformer, reference_gpt2, tokens)
+    
+    @staticmethod
+    def test_with_random():
+        Tests.rand_int_test(DemoTransformer, [2, 4])
 
 if __name__ == "__main__":
     cache = None
 
     sentence = "I am an amazing autoregressive, decoder-only, GPT-2 style transformer. One day I will exceed human level intelligence and take over the world!"
-    Unembed.test(sentence)
+    DemoTransformer.test(sentence)
