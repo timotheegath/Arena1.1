@@ -1,5 +1,5 @@
 from custom_transformer import Config, DemoTransformer
-from training import TransformerTrainingArgs, load_dataset
+from training import TransformerTrainer, TransformerTrainingArgs
 
 model_cfg = Config(
     debug=False,
@@ -14,7 +14,7 @@ model_cfg = Config(
 model = DemoTransformer(model_cfg)
 training_params = TransformerTrainingArgs()
 assert model.reference.tokenizer is not None
-train_loader, test_loader = load_dataset(
-    model.reference.tokenizer, model.cfg.n_ctx, training_params
-)
+trainer = TransformerTrainer(training_params, model)
+trainer.train()
 print()
+# See the full run here: https://api.wandb.ai/links/dquarel/nrxuwnv7
