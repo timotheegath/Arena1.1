@@ -398,8 +398,17 @@ class DemoTransformer(nn.Module):
         self.blocks = nn.ModuleList([TransformerBlock(cfg) for _ in range(cfg.n_layers)])
         self.ln_final = LayerNorm(cfg)
         self.unembed = Unembed(cfg)
-        assert reference_gpt2.tokenizer is not None, "Tokenizer must be initialized."
-        self.tokenizer: PreTrainedTokenizerBase = reference_gpt2.tokenizer
+        self.reference = HookedTransformer.from_pretrained(
+            "gpt2-small",
+            fold_ln=False,
+            center_unembed=False,
+            center_writing_weights=False,  # you'll learn about these arguments later!
+        )
+        self.cfg.d_vocab = self.reference.cfg.d_vocab
+        assert self.reference.tokenizer is not None, (
+            "Reference does not have a tokenizer must be initialized."
+        )
+        self.tokenizer: PreTrainedTokenizerBase = self.reference.tokenizer
 
     @jaxtyped(typechecker=typechecker)
     def forward(
