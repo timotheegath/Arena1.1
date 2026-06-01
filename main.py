@@ -1,4 +1,5 @@
 from custom_transformer import Config, DemoTransformer
+from training import TransformerTrainingArgs, load_dataset
 
 model_cfg = Config(
     debug=False,
@@ -11,3 +12,6 @@ model_cfg = Config(
     # d_vocab will be taken from the ref model automatically
 )
 model = DemoTransformer(model_cfg)
+training_params = TransformerTrainingArgs()
+assert model.reference.tokenizer is not None
+load_dataset(model.reference.tokenizer, model.cfg.n_ctx, training_params)

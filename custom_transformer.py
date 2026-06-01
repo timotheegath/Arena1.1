@@ -417,9 +417,7 @@ class DemoTransformer(nn.Module):
             center_writing_weights=False,  # you'll learn about these arguments later!
         )
         self.cfg.d_vocab = self.reference.cfg.d_vocab
-        assert self.reference.tokenizer is not None, (
-            "Reference does not have a tokenizer must be initialized."
-        )
+        assert self.reference.tokenizer is not None, "Reference does not have a tokenizer."
         self.tokenizer: PreTrainedTokenizerBase = self.reference.tokenizer
 
     @jaxtyped(typechecker=typechecker)
