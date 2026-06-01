@@ -219,7 +219,7 @@ class Attention(nn.Module):
     def __init__(self, cfg: Config):
         super().__init__()
         self.cfg = cfg
-        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head))).to(device)
+        self.W_Q = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head), requires_grad=True)).to(device)
         self.W_K = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head))).to(device)
         self.W_V = nn.Parameter(t.empty((cfg.n_heads, cfg.d_model, cfg.d_head))).to(device)
         self.W_O = nn.Parameter(t.empty((cfg.n_heads, cfg.d_head, cfg.d_model))).to(device)
@@ -382,13 +382,13 @@ class Unembed(nn.Module):
         self.cfg = cfg
         self.W_U = nn.Parameter(t.empty((cfg.d_model, cfg.d_vocab))).to(device)
         nn.init.normal_(self.W_U, std=self.cfg.init_range)
-        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab), requires_grad=False)).to(device)
+        self.b_U = nn.Parameter(t.zeros((cfg.d_vocab))).to(device)
 
     def forward(
         self, normalized_resid_final: Float[Tensor, "batch position d_model"]
     ) -> Float[Tensor, "batch position d_vocab"]:
-
-        return t.matmul(normalized_resid_final, self.W_U) + self.b_U
+        out= t.matmul(normalized_resid_final, self.W_U) + self.b_U
+        return out
 
     @staticmethod
     def test(

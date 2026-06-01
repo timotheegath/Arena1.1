@@ -4,7 +4,7 @@
           "part1_transformer_from_scratch/**"
      ],
      "python.analysis.exclude": [
-          "part1_transformer_from_scratch/"
+     "**/node_modules", "**/__pycache__", "**/.*", ".venv"
      ],
      "python.analysis.typeCheckingMode": "basic",
      "python.analysis.diagnosticMode": "openFilesOnly",
