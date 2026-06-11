@@ -485,8 +485,11 @@ class TransformerSampler:
         if seed is not None:
             t.manual_seed(seed)
             np.random.seed(seed)
-        input_tokens = Tensor(self.tokenizer.encode(prompt)).to(t.int).to(device)
+        input_tokens = Tensor(self.tokenizer.encode(prompt)).to(t.int).to(device).unsqueeze(0)
+        logits:  Float[Tensor, "batch position d_vocab"] = self.model.forward(input_tokens)
+        print(logits.shape)
         
+        return ""
 
 
     @staticmethod
