@@ -469,7 +469,10 @@ class TransformerSampler:
         """
         Applies temperature scaling to the logits.
         """
-        raise NotImplementedError()
+        if temperature == 0: # then it's just greedy
+            token_winner = t.argmax(logits, -1)
+            return t.nn.functional.one_hot(token_winner, num_classes=logits.shape[-1])
+        return logits/temperature
 
     @staticmethod
     def apply_frequency_penalty(

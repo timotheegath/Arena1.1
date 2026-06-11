@@ -3,11 +3,11 @@ from collections import defaultdict
 import torch as t
 from torch import Tensor
 from tqdm import tqdm
-
-from custom_transformer import Config, DemoTransformer, TransformerSampler
 from transformer_lens import HookedTransformer
+
+import tests
+from custom_transformer import Config, DemoTransformer, TransformerSampler
 from training import TransformerTrainer, TransformerTrainingArgs
-from tests import test_sample_basic
 
 device = t.device(
     "mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu"
@@ -26,30 +26,18 @@ device = t.device(
 model = DemoTransformer(Config()).to(device)
 model.load_pretrained_weights_from_reference()
 sampler = TransformerSampler(model, model.tokenizer) # type: ignore
-test_sample_basic(sampler.sample_basic)
-prompt = "John and Mary went to the"
-input_ids = Tensor(model.tokenizer.encode(prompt, return_tensors="pt")).to(device)
-logits = model(input_ids)[0, -1]
 
-expected_top_5 = {
-    " church": 0.0648,
-    " house": 0.0367,
-    " temple": 0.0145,
-    " same": 0.0104,
-    " Church": 0.0097,
-}
-frequency_of_top_5: defaultdict[str, int] = defaultdict(int)
+tests.test_apply_temperature(TransformerSampler.apply_temperature)
 
-N = 10_0000
-for _ in tqdm(range(N)):
-    token = TransformerSampler.sample_next_token(input_ids.squeeze(), logits)
-    frequency_of_top_5[str(model.tokenizer.decode(token))] += 1
+logits = t.tensor([1, 2]).log()
 
-for word in expected_top_5:
-    expected_freq = expected_top_5[word]
-    observed_freq = frequency_of_top_5[word] / N
-    print(f"Word: {word!r:<9}. Expected freq {expected_freq:.4f}, observed freq {observed_freq:.4f}")
-    assert abs(observed_freq - expected_freq) < 0.01, "Try increasing N if this fails by a small amount."
+cold_logits = TransformerSampler.apply_temperature(logits, temperature=0.001)
+print('A low temperature "sharpens" or "peaks" the distribution: ', cold_logits)
+t.testing.assert_close(cold_logits, 1000.0 * logits)
+
+hot_logits = TransformerSampler.apply_temperature(logits, temperature=1000.0)
+print("A high temperature flattens the distribution: ", hot_logits)
+t.testing.assert_close(hot_logits, 0.001 * logits)
 
 print("Tests passed!")
 
