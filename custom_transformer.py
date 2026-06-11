@@ -493,7 +493,7 @@ class TransformerSampler:
             last_logits: Float[Tensor, "batch d_vocab"] = logits[:, -1, :]
             next_token = self.sample_next_token(input_tokens, last_logits)
             sequence.append(str(self.tokenizer.decode(next_token))) # Add the new word to the sequence
-        return ""
+        return prompt + "".join(sequence)
 
 
     @staticmethod
