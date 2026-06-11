@@ -416,7 +416,7 @@ class TransformerSampler:
         if seed is not None:
             t.manual_seed(seed)
             np.random.seed(seed)
-        while len(sequence) <= max_tokens_generated and sequence[-1] != self.tokenizer.eos_token_id:
+        while len(sequence) <= max_tokens_generated and (len(sequence) == 0 or sequence[-1] != self.tokenizer.eos_token_id):
             prompt_with_new_seq = prompt + "".join(sequence)
             input_tokens = Tensor(self.tokenizer.encode(prompt_with_new_seq)).to(t.int).to(device).unsqueeze(0)
             logits:  Float[Tensor, "batch position d_vocab"] = self.model.forward(input_tokens) # For sampling, shouldn't we just keep the last position ? I will just keep the last position for now:
@@ -486,7 +486,6 @@ class TransformerSampler:
         target_length = logits.shape[-1]
         padded = t.zeros(target_length).to(device)
         padded[:len(frequency)] = frequency
-        freq_penalty = Tensor([freq_penalty]).to(device)
         logits_post_penalty = logits - padded*freq_penalty
 
         return logits_post_penalty

@@ -6,8 +6,10 @@ from tqdm import tqdm
 from transformer_lens import HookedTransformer
 
 import tests
+import wandb
 from custom_transformer import Config, DemoTransformer, TransformerSampler
 from training import TransformerTrainer, TransformerTrainingArgs
+from wandb import Table
 
 device = t.device(
     "mps" if t.backends.mps.is_available() else "cuda" if t.cuda.is_available() else "cpu"
@@ -27,15 +29,23 @@ model = DemoTransformer(Config()).to(device)
 model.load_pretrained_weights_from_reference()
 sampler = TransformerSampler(model, model.tokenizer) # type: ignore
 
-tests.test_apply_frequency_penalty(TransformerSampler.apply_frequency_penalty)
+N_RUNS = 2
+your_prompt = "Jingle bells, jingle bells, jingle all the way"
+cases = [
+    ("High freq penalty", dict(frequency_penalty=100.0)),
+    ("Negative freq penalty", dict(frequency_penalty=-3.0)),
+    ("Too hot!", dict(temperature=2.0)),
+    ("Pleasantly cool", dict(temperature=0.7)),
+    ("Pleasantly warm", dict(temperature=0.9)),
+    ("Too cold!", dict(temperature=0.01)),
+]
 
-bieber_prompt = "And I was like Baby, baby, baby, oh Like, Baby, baby, baby, no Like, Baby, baby, baby, oh I thought you'd always be mine, mine"
-input_ids = Tensor(model.tokenizer.encode(bieber_prompt, return_tensors="pt")).to(device)
-logits = t.ones(model.tokenizer.vocab_size).to(device)
-penalized_logits = TransformerSampler.apply_frequency_penalty(input_ids.squeeze(), logits, 2.0)
+table = Table(columns = ["Name", "Kwargs", "Output"])
+with wandb.init(project="temperature-penalty-test") as run:
 
-assert penalized_logits[5156].item() == -11, "Expected 6 occurrences of ' baby' with leading space, 1-2*6=-11"
-assert penalized_logits[14801].item() == -5, "Expected 3 occurrences of ' Baby' with leading space, 1-2*3=-5"
-
-print("Tests passed!")
-
+    for name, kwargs in cases:
+        for i in range(N_RUNS):
+            output = sampler.sample(your_prompt, max_tokens_generated=24)
+            table.add_row(name, str(kwargs), repr(output) + "\n")
+    run.log({"Sampling - Manual Testing": table})
+    print(table)
